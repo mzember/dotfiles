@@ -399,7 +399,7 @@ nmap <leader>v :e ~/.vimrc<CR>
 nn  <leader>u :source <C-R>=vimrc<CR><CR>
 
 " edit ~/.vim/ftplugin/html/mapping.vim
-nmap <a-h> :e ~/.vim/ftplugin/html/mapping.vim<CR>
+"nmap <a-h> :e ~/.vim/ftplugin/html/mapping.vim<CR>
 
 
 " nn  ,v :edit   <C-R>=vimrc<CR><CR>
