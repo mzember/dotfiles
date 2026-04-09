@@ -484,4 +484,4 @@ alias wd='source ~/bin/wd'
 alias dig='echo "ℹ️  Hint: for multi-record queries use digq <domain>" >&2; /usr/bin/dig'
 echo .zshrc finished
 
-export PATH="$HOME/.local/bin:$PATH"
+export PATH="$HOME/.local/bin:$HOME/kali-shared/tools:$PATH"
