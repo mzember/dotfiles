@@ -1,0 +1,209 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Usage:
+#   ffuf-vhost                  # uses `target`
+#   ffuf-vhost planning
+#   ffuf-vhost planning.htb
+#   ffuf-vhost -w 1
+#   ffuf-vhost planning -w 2 -t 80
+#   ffuf-vhost --https planning.htb
+#
+# Notes:
+# - If target has no dot, ".htb" is appended.
+# - Extra args are passed to ffuf.
+# - Response size is auto-detected using a random nonexistent subdomain.
+
+WORDLISTS=(
+  "/usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt"
+  "/usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt"
+  "/usr/share/seclists/Discovery/DNS/namelist.txt"
+  "/usr/share/seclists/Discovery/Web-Content/common.txt"
+)
+
+show_wordlists() {
+  echo "Available wordlists:"
+  local i
+  for i in "${!WORDLISTS[@]}"; do
+    printf '  [%s] %s\n' "$i" "${WORDLISTS[$i]}"
+  done
+  echo "Default: -w 0"
+  echo
+}
+
+have_cmd() {
+  command -v "$1" >/dev/null 2>&1
+}
+
+rand_label() {
+  tr -dc 'a-z0-9' </dev/urandom | head -c 12
+}
+
+detect_size() {
+  local scheme=$1
+  local host=$2
+  local fake
+  fake="$(rand_label).$host"
+
+  local main_code main_size invalid_code invalid_size
+
+  read -r main_code main_size < <(
+    curl -ksS -o /dev/null -w '%{http_code} %{size_download}\n' \
+      -H "Host: $host" \
+      -H "Accept-Encoding: identity" \
+      "${scheme}://${host}"
+  )
+
+  read -r invalid_code invalid_size < <(
+    curl -ksS -o /dev/null -w '%{http_code} %{size_download}\n' \
+      -H "Host: $fake" \
+      -H "Accept-Encoding: identity" \
+      "${scheme}://${host}"
+  )
+
+  echo "[*] Main site Host:    $host -> HTTP $main_code, $main_size bytes" >&2
+  echo "[*] Invalid Host:      $fake -> HTTP $invalid_code, $invalid_size bytes" >&2
+
+  printf '%s\n' "$invalid_size"
+}
+
+normalize_target() {
+  local raw=$1
+
+  # Strip scheme if someone passes http://planning.htb
+  raw="${raw#http://}"
+  raw="${raw#https://}"
+
+  # Strip any trailing slash/path just in case
+  raw="${raw%%/*}"
+
+  if [[ "$raw" == *.* ]]; then
+    printf '%s\n' "$raw"
+  else
+    printf '%s.htb\n' "$raw"
+  fi
+}
+
+main() {
+  local wl_index=0
+  local scheme="http"
+  local target_arg=""
+  local extra_args=()
+
+  show_wordlists
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -w|--wordlist)
+        shift
+        [[ $# -gt 0 ]] || { echo "[-] Missing value after -w/--wordlist" >&2; exit 1; }
+        wl_index="$1"
+        ;;
+      --http)
+        scheme="http"
+        ;;
+      --https)
+        scheme="https"
+        ;;
+      -h|--help)
+        cat <<'EOF'
+Usage:
+  ffuf-vhost [target] [-w N] [--http|--https] [extra ffuf args...]
+
+Examples:
+  ffuf-vhost
+  ffuf-vhost planning
+  ffuf-vhost planning.htb
+  ffuf-vhost -w 1
+  ffuf-vhost planning -w 2 -t 80
+  ffuf-vhost --https planning.htb
+
+Tips:
+  Next time you can select another list with -w 1 or -w 2.
+EOF
+        exit 0
+        ;;
+      -*)
+        extra_args+=("$1")
+        ;;
+      *)
+        if [[ -z "$target_arg" ]]; then
+          target_arg="$1"
+        else
+          extra_args+=("$1")
+        fi
+        ;;
+    esac
+    shift
+  done
+
+  if ! have_cmd ffuf; then
+    echo "[-] ffuf not found" >&2
+    exit 1
+  fi
+
+  if ! have_cmd curl; then
+    echo "[-] curl not found" >&2
+    exit 1
+  fi
+
+  if [[ ! "$wl_index" =~ ^[0-9]+$ ]]; then
+    echo "[-] Wordlist index must be a number" >&2
+    exit 1
+  fi
+
+  if (( wl_index < 0 || wl_index >= ${#WORDLISTS[@]} )); then
+    echo "[-] Invalid wordlist index: $wl_index" >&2
+    exit 1
+  fi
+
+  local raw_target
+  if [[ -n "$target_arg" ]]; then
+    raw_target="$target_arg"
+  else
+    if ! have_cmd target; then
+      echo "[-] No target argument given and command 'target' not found" >&2
+      exit 1
+    fi
+    raw_target="$(target)"
+  fi
+
+  local host
+  host="$(normalize_target "$raw_target")"
+
+  local wordlist="${WORDLISTS[$wl_index]}"
+  if [[ ! -f "$wordlist" ]]; then
+    echo "[-] Wordlist not found: $wordlist" >&2
+    exit 1
+  fi
+
+  echo "[*] Raw target: $raw_target"
+  echo "[*] Normalized host: $host"
+  echo "[*] Scheme: $scheme"
+  echo "[*] Wordlist [$wl_index]: $wordlist"
+  echo
+
+  echo "[*] Detecting baseline response size using random Host header..."
+  local fs
+  fs="$(detect_size "$scheme" "$host")"
+  echo "[*] Auto-detected -fs: $fs"
+  echo
+
+  echo "[*] Running:"
+  printf '    ffuf -w %q -H %q -u %q -fs %q' \
+    "$wordlist" "Host: FUZZ.$host" "${scheme}://$host" "$fs"
+  if [[ ${#extra_args[@]} -gt 0 ]]; then
+    printf ' %q' "${extra_args[@]}"
+  fi
+  echo
+  echo
+
+  exec ffuf \
+    -w "$wordlist" \
+    -H "Host: FUZZ.$host" \
+    -u "${scheme}://${host}" \
+    -fs "$fs" \
+    "${extra_args[@]}"
+}
+
+main "$@"
