@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+#set -euo pipefail
+
+while read -r host; do
+  [ -z "$host" ] && continue
+  echo "===== $host ====="
+  ssh "$host" 'export PATH="$HOME/.local/bin:$PATH"; dot status --short; dot diff --stat'
+  echo
+done < "$HOME/.config/dotfiles/hosts"

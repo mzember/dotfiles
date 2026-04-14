@@ -1,0 +1,87 @@
+#!/bin/bash
+set -euo pipefail
+
+# This script runs on the CANONICAL machine to set up a new non-canonical host.
+
+if [ "$#" -ne 1 ]; then
+    echo "Usage: $0 <user@new-host>"
+    echo "This script sets up a new host by pushing the dotfiles repo to it."
+    echo "It requires passwordless SSH access to the target host."
+    exit 1
+fi
+
+NEW_HOST="$1"
+# Derives 'my-vps' from 'user@my-vps.example.com'
+HOST_ALIAS=$(echo "$NEW_HOST" | cut -d'@' -f2 | cut -d'.' -f1)
+DOTFILES_DIR="$HOME/.dotfiles"
+BUNDLE_FILE="dotfiles_repo.bundle"
+
+echo "--- Preparing to set up new host: $NEW_HOST (alias: $HOST_ALIAS) ---"
+
+# 1. Create a bundle of the canonical repo
+echo "--> Creating git bundle..."
+/usr/bin/git --git-dir="$DOTFILES_DIR" bundle create "$BUNDLE_FILE" --all
+
+# 2. Copy bundle to the new host
+echo "--> Copying bundle to $NEW_HOST..."
+scp "$BUNDLE_FILE" "$NEW_HOST":~/
+
+# 3. SSH and run the setup commands on the remote host
+echo "--> Executing remote setup on $NEW_HOST..."
+ssh -T "$NEW_HOST" << 'EOF'
+set -euo pipefail
+
+echo "--- Running setup on remote host ---"
+
+if [ -d "$HOME/.dotfiles" ]; then
+    echo "Dotfiles repository already exists at ~/.dotfiles. Skipping clone."
+else
+    echo "Cloning dotfiles repository from bundle..."
+    git clone dotfiles_repo.bundle $HOME/.dotfiles --bare
+fi
+rm dotfiles_repo.bundle
+
+alias dotfiles='/usr/bin/git --git-dir=$HOME/.dotfiles/ --work-tree=$HOME'
+dotfiles config --local status.showUntrackedFiles no
+
+echo "Checking out dotfiles into $HOME..."
+BACKUP_DIR="$HOME/.dotfiles-backup-$(date +%Y%m%d%H%M%S)"
+files_to_checkout=$(dotfiles ls-files)
+
+if [ -n "$files_to_checkout" ]; then
+    echo "Backing up any conflicting files to $BACKUP_DIR"
+    for file in $files_to_checkout; do
+        if [ -e "$HOME/$file" ] && [ ! -L "$HOME/$file" ]; then
+            mkdir -p "$BACKUP_DIR/$(dirname "$file")"
+            mv "$HOME/$file" "$BACKUP_DIR/$file"
+        fi
+    done
+fi
+
+dotfiles checkout
+echo "Checkout successful."
+echo "--- Remote setup complete ---"
+echo "IMPORTANT: Add the following alias to your shell configuration file (~/.bashrc, ~/.zshrc):"
+echo "alias dotfiles='/usr/bin/git --git-dir=\$HOME/.dotfiles/ --work-tree=\$HOME'"
+EOF
+
+# 4. Clean up local bundle file
+echo "--> Cleaning up local bundle file..."
+rm "$BUNDLE_FILE"
+
+# 5. Add the new host as a git remote on the canonical machine
+echo "--> Adding '$HOST_ALIAS' as a git remote..."
+if /usr/bin/git --git-dir="$DOTFILES_DIR" remote | grep -q "^$HOST_ALIAS$"; then
+    /usr/bin/git --git-dir="$DOTFILES_DIR" remote set-url "$HOST_ALIAS" "$NEW_HOST:$HOME/.dotfiles"
+else
+    /usr/bin/git --git-dir="$DOTFILES_DIR" remote add "$HOST_ALIAS" "$NEW_HOST:$HOME/.dotfiles"
+fi
+
+# 6. Add host to the hosts file for the sync script
+HOSTS_FILE="$DOTFILES_DIR/hosts"
+if [ -f "$HOSTS_FILE" ] && ! grep -q "^$HOST_ALIAS$" "$HOSTS_FILE"; then
+    echo "--> Adding '$HOST_ALIAS' to $HOSTS_FILE"
+    echo "$HOST_ALIAS" >> "$HOSTS_FILE"
+fi
+
+echo "--- Host setup for '$HOST_ALIAS' complete! ---"
