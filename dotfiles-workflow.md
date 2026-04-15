@@ -34,3 +34,29 @@ I use a bare Git repo in:
 ```sh
 ~/.dotfiles
 ```
+
+## Usage
+
+# Define a function for the dotfiles command. This is more robust than an alias for scripts.
+```sh
+dotfiles() {
+    /usr/bin/git --git-dir="$HOME/.dotfiles/" --work-tree="$HOME" "$@"
+}
+```
+
+### Use up-to-date files locally
+```sh
+dotfiles checkout main
+```
+
+### Add new host
+
+```sh
+dotfiles-add-host <machine>
+```
+
+### Sync
+```sh
+dotfiles-sync
+```
+
