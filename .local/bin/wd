@@ -1,0 +1,6 @@
+if [ -n "$1" ]; then
+	echo "$1" > ~/workingdirectory
+	cd "$1"
+else
+	cd `cat ~/workingdirectory`
+fi

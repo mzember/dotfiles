@@ -1,0 +1,5 @@
+if [ -z "$1" ]; then
+	less ~/.cmdlog
+else
+	grep "$1" ~/.cmdlog
+fi
