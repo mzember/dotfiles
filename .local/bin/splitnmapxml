@@ -1,0 +1,7 @@
+awk '/^<\?xml version/ { 
+        file = "nmap-part-" ++i ".xml"   # nmap-part-1.xml, nmap-part-2.xml, ...
+     } 
+     { 
+        print > file 
+     }' nmap-full.xml
+

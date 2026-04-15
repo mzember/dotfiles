@@ -1,0 +1,3 @@
+O=`ip route | sed -rn '/tun1/s/^[0-9]*\.[0-9]*\.([0-9]*).*/\1/p'`
+if [ $(expr "$O" + 40) -ne `octet` ]; then notify-send 'octet_in weird'; fi
+echo "$O"

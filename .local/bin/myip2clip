@@ -1,0 +1,1 @@
+echo -n `myip` | xclip -sel clip
