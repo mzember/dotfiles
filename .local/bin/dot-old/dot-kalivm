@@ -1,4 +1,0 @@
-#!/usr/bin/env bash
-echo You can mount the remote dir with:
-echo sshfs kalivm:/home/kali "~/mnt/kalivm-home"
-git --git-dir="$HOME/.dotfiles" --work-tree="$HOME/mnt/kalivm-home" "$@"
