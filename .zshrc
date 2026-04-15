@@ -480,6 +480,7 @@ p() {
 }
 
 # Define a function for the dotfiles command. This is more robust than an alias for scripts.
+# Even when it is in another file, we need it in .zshrc
 dotfiles() {
     /usr/bin/git --git-dir="$HOME/.dotfiles/" --work-tree="$HOME" "$@"
 }

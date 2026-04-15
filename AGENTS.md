@@ -10,15 +10,15 @@ Keep one canonical dotfiles repo on the laptop and distribute changes to other m
 - Helper scripts live in `~/.local/bin`
 - Non-canonical machines are consumers by default
 
-## Unsolved
-- Scripts will eventually clobber and would be good to split into categories: for oscp/ctf/hacking, for dotfiles management, ...
-- Allow sync for only a small subset of hosts temporarily and turning back sync for all hosts again (or specify on commmand line to sync all)
+## Deferred
+- Not now: Scripts will eventually clobber and would be good to split into categories: for oscp/ctf/hacking, for dotfiles management, ...
 
 ## Sync policy
 - Prefer direct Git-over-SSH between laptop and machines
 - GitHub is optional backup/mirror, not required for every sync
 - Keep the main publishing flow short, ideally one wrapper command
 - Avoid ad-hoc file copying when Git can carry history and diffs
+- Allow sync for only a small subset of hosts temporarily and turning back sync for all hosts again (or specify on commmand line to sync all)
 
 
 ## Safety policy

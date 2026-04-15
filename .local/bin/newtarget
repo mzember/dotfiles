@@ -1,3 +1,4 @@
+#!/bin/bash
 NEW="$1"
 if [ -z "$NEW" ]; then
 	read NEW

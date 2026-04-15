@@ -1,3 +1,4 @@
+#!/bin/bash
 if [ -f target ]; then
 	cat target
 	cp target ~/ 2>/dev/null
