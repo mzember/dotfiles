@@ -479,10 +479,16 @@ p() {
     fi
 }
 
+# Define a function for the dotfiles command. This is more robust than an alias for scripts.
+dotfiles() {
+    /usr/bin/git --git-dir="$HOME/.dotfiles/" --work-tree="$HOME" "$@"
+}
+
 alias z='vim ~/.zshrc'
 alias wd='source ~/bin/wd'
 alias dig='echo "ℹ️  Hint: for multi-record queries use digq <domain>" >&2; /usr/bin/dig'
 echo .zshrc finished
+
 
 # Prepend categorized script directories to PATH for better organization.
 #export PATH="$HOME/.local/bin/dotfiles:$PATH"

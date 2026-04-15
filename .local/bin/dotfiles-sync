@@ -52,7 +52,7 @@ cmd_push() {
                     TARGET_HOSTS+=("$arg")
                     ;;
             esac
-        fi
+        done
         # Remove duplicates that might arise from e.g., 'push my-vm all'
         if [ ${#TARGET_HOSTS[@]} -gt 0 ]; then
             TARGET_HOSTS=($(printf "%s\n" "${TARGET_HOSTS[@]}" | sort -u))
