@@ -1,1 +1,0 @@
-echo -n http://`target`/ | xclip -sel clip

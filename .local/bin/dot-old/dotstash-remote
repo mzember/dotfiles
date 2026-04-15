@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+host="${1:?usage: dotstash-remote <host>}"
+ssh "$host" '
+  git --git-dir="$HOME/.dotfiles" --work-tree="$HOME" stash push -u -m "pre-sync stash"
+'

@@ -1,9 +1,0 @@
-NEW="$1"
-if [ -z "$NEW" ]; then
-	read NEW
-fi
-if [ -z "$NEW" ]; then
-	echo 'usage: $0 <new target>'
-	echo 'or $0 and supply new target in the standard input'
-fi
-echo "$NEW" | tee target > ~/target

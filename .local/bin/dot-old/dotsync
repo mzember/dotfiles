@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+msg="${1:-sync}"
+
+dot add -u
+if ! dot diff --cached --quiet; then
+  dot commit -m "$msg"
+fi
+dot push
+
+rc=0
+
+while read -r host; do
+  [ -n "$host" ] || continue
+  echo "==> updating $host"
+  if ! ssh "$host" 'bash -s' <<'EOSSH'
+set -euo pipefail
+GIT_DIR="$HOME/.dotfiles"
+WORK_TREE="$HOME"
+g() { git --git-dir="$GIT_DIR" --work-tree="$WORK_TREE" "$@"; }
+
+g ls-files -z | while IFS= read -r -d "" f; do
+  [ -e "$WORK_TREE/$f" ] && chmod u+w "$WORK_TREE/$f" || true
+done
+
+g pull --ff-only
+
+g ls-files -z | while IFS= read -r -d "" f; do
+  [ -e "$WORK_TREE/$f" ] && chmod a-w "$WORK_TREE/$f" || true
+done
+EOSSH
+  then
+    echo "!! failed on $host" >&2
+    rc=1
+  fi
+done < "$HOME/.config/dotfiles/hosts"
+
+exit "$rc"

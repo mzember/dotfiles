@@ -484,4 +484,16 @@ alias wd='source ~/bin/wd'
 alias dig='echo "ℹ️  Hint: for multi-record queries use digq <domain>" >&2; /usr/bin/dig'
 echo .zshrc finished
 
-export PATH="$HOME/.local/bin:$HOME/kali-shared/tools:$PATH"
+# Prepend categorized script directories to PATH for better organization.
+#export PATH="$HOME/.local/bin/dotfiles:$PATH"
+#export PATH="$HOME/.local/bin/hacking:$PATH"
+#export PATH="$HOME/.local/bin/utils:$PATH"
+
+# --- Machine-specific configurations ---
+# Load hostname-specific configurations if they exist.
+# This allows for customization per machine without polluting the main dotfiles.
+if [[ -n "$HOST" ]]; then
+    HOSTNAME_SHORT=$(echo "$HOST" | cut -d'.' -f1) # Get short hostname if FQDN
+    [[ -f "$HOME/.zshrc.$HOSTNAME_SHORT" ]] && source "$HOME/.zshrc.$HOSTNAME_SHORT"
+fi
+# Example: Create a file ~/.zshrc.kali for kali-specific settings.
