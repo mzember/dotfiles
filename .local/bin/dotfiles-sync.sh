@@ -1,8 +1,10 @@
 #!/bin/bash
-set -euo pipefail
+    set -euo pipefail
 
-# Define the alias for convenience in this script
-alias dotfiles='/usr/bin/git --git-dir=$HOME/.dotfiles/ --work-tree=$HOME'
+# Define a function for the dotfiles command. This is more robust than an alias for scripts.
+dotfiles() {
+    /usr/bin/git --git-dir="$HOME/.dotfiles/" --work-tree="$HOME" "$@"
+}
 
 usage() {
     echo "Usage: $0 <command> [args]"
@@ -45,7 +47,7 @@ cmd_push() {
                     TARGET_HOSTS+=("$arg")
                     ;;
             esac
-        fi
+        done
         # Remove duplicates that might arise from e.g., 'push my-vm all'
         if [ ${#TARGET_HOSTS[@]} -gt 0 ]; then
             TARGET_HOSTS=($(printf "%s\n" "${TARGET_HOSTS[@]}" | sort -u))
@@ -67,15 +69,18 @@ cmd_push() {
         echo "--> Checking for and applying changes on $host..."
         if ! ssh -T "$host" <<'EOF'
 set -euo pipefail
-DOTFILES_CMD="/usr/bin/git --git-dir=\$HOME/.dotfiles/ --work-tree=\$HOME"
 
-if [[ -n $($DOTFILES_CMD status --porcelain) ]]; then
+dotfiles() {
+    /usr/bin/git --git-dir="$HOME/.dotfiles/" --work-tree="$HOME" "$@"
+}
+
+if [[ -n $(dotfiles status --porcelain) ]]; then
     echo "Error on host: Local modifications found. Aborting sync for this host." >&2
-    $DOTFILES_CMD status --short >&2
+    dotfiles status --short >&2
     exit 1
 fi
 
-$DOTFILES_CMD checkout main
+dotfiles checkout main
 EOF
         then
             echo "Failed to sync host: $host. Please check the output above." >&2

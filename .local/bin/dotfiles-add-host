@@ -60,9 +60,8 @@ fi
 
 dotfiles checkout
 echo "Checkout successful."
+
 echo "--- Remote setup complete ---"
-echo "IMPORTANT: Add the following alias to your shell configuration file (~/.bashrc, ~/.zshrc):"
-echo "alias dotfiles='/usr/bin/git --git-dir=\$HOME/.dotfiles/ --work-tree=\$HOME'"
 EOF
 
 # 4. Clean up local bundle file
