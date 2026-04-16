@@ -48,6 +48,21 @@ dotfiles() {
 ```sh
 dotfiles checkout main
 ```
+It may be needed to 
+```sh
+dotfiles checkout main --force
+```
+but be careful: it may delete files. Back up, and also commit and push first if those changes are intentional.
+
+If the first command displays this:
+```sh
+dotfiles checkout main
+D       .local/bin/nmap2nxc_spray.py
+Already on 'main'
+Your branch is up to date with 'origin/main'.
+```
+Then it means:
+TODO
 
 ### Add new host
 
