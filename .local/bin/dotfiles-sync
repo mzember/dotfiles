@@ -71,26 +71,25 @@ cmd_push() {
 
         # 2. On the remote host, check for local changes before checking out the work-tree.
         echo "--> Checking for and applying changes on $host..."
-        if ! ssh -T "$host" <<'EOF'
+        # Pass FORCE_PUSH into the remote environment for the script to use.
+        if ! ssh -T "$host" "FORCE_PUSH=$FORCE_PUSH" 'bash -s' <<'EOF'
 set -euo pipefail
 
 dotfiles() {
     /usr/bin/git --git-dir="$HOME/.dotfiles/" --work-tree="$HOME" "$@"
 }
 
-if [[ "$FORCE_PUSH" != "true" ]]; then # Check for force flag
+if [[ "${FORCE_PUSH}" == "true" ]]; then
+    echo "Force push enabled. Overwriting local changes."
+    dotfiles checkout -f main
+else
     if [[ -n $(dotfiles status --porcelain) ]]; then
         echo "Error on host: Local modifications found. Aborting sync for this host." >&2
         dotfiles status --short >&2
         exit 1
     fi
     dotfiles checkout main
-else
-    echo "Force push enabled. Overwriting local changes on $host."
-    dotfiles checkout -f main
 fi
-
-dotfiles checkout main
 EOF
         then
             echo "Failed to sync host: $host. Please check the output above." >&2
