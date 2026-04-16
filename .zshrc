@@ -490,7 +490,7 @@ alias wd='source ~/bin/wd'
 alias dig='echo "ℹ️  Hint: for multi-record queries use digq <domain>" >&2; /usr/bin/dig'
 echo .zshrc finished
 
-
+export PATH="$HOME/.local/bin:$PATH"
 # In the future, maybe:
 # Prepend categorized script directories to PATH for better organization.
 #export PATH="$HOME/.local/bin/dotfiles:$PATH"
