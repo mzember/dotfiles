@@ -20,6 +20,10 @@ PORT_SERVICE_MAP = {
     135: "wmi",
 }
 
+# Set to True to enable substitution of the third octet with `octet` or
+# `octet_in`
+ENABLE_OCTET_SUBSTITUTION = False
+
 BASH_ARRAY_NAMES = {
     "ftp": "FTP_TARGETS",
     "ssh": "SSH_TARGETS",
@@ -177,11 +181,15 @@ def generate_bash(service_hosts, nmap_xml_path, pwned_keys):
                 if key in pwned_keys:
                     continue
                 # substitute third octet literally as `octet`
-                if parts[0] == "192":
-                    parts[2] = "`octet`"
+                if ENABLE_OCTET_SUBSTITUTION:
+                    if parts[0] == "192":
+                        parts[2] = "`octet`"
+                    else:
+                        parts[2] = "`octet_in`"
+                    ips_mod.append(".".join(parts))
                 else:
-                    parts[2] = "`octet_in`"
-                ips_mod.append(".".join(parts))
+                    # Append original IP if substitution is disabled
+                    ips_mod.append(ip)
             else:
                 ips_mod.append(ip)
         if not ips_mod:
