@@ -62,7 +62,10 @@ Already on 'main'
 Your branch is up to date with 'origin/main'.
 ```
 Then it means:
-TODO
+The origin/main does not have the file. If you commit the file, it will get removed. In this case, if you do not want to delete it, use
+```sh
+dotfiles checkout main --force
+```
 
 ### Add new host
 
