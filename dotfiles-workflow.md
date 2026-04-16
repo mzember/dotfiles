@@ -45,14 +45,17 @@ dotfiles() {
 ```
 
 ### Use up-to-date files locally
+Check which changes are waiting:
 ```sh
 dotfiles checkout main
 ```
+It will not write to files yet.
+
 It may be needed to 
 ```sh
 dotfiles checkout main --force
 ```
-but be careful: it may delete files. Back up, and also commit and push first if those changes are intentional.
+but be careful: it may delete files and overwrite local changes. Commit and push first if those changes are intentional.
 
 If the first command displays this:
 ```sh
@@ -62,7 +65,7 @@ Already on 'main'
 Your branch is up to date with 'origin/main'.
 ```
 Then it means:
-The origin/main does not have the file. If you commit the file, it will get removed. In this case, if you do not want to delete it, use
+The origin/main does not have the file (D). If you commit the file, it will get removed. In this case, if you do not want to delete it, use
 ```sh
 dotfiles checkout main --force
 ```
