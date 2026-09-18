@@ -1,8 +1,19 @@
-# This file lists the remote hosts to sync dotfiles to.
-# The actual 'hosts' file is located at ~/.dotfiles/hosts and is not committed to Git.
+# Template for the dotfiles-sync host list.
 #
-# One hostname per line.
-# Lines starting with # are ignored.
-
+# The REAL list is NOT tracked in git (so the set of machines is never
+# published to GitHub). It lives at exactly one path:
+#
+#   ~/.config/dotfiles/hosts
+#
+# Format: one host (ssh alias) per line.
+#   host        -> enabled
+#   #host       -> disabled (kept for later, skipped by sync)
+#
+# Toggle without editing by hand:
+#   dotfiles-sync on  <host>
+#   dotfiles-sync off <host>
+#   dotfiles-sync list
+#
+# Example:
 kali-vm-1
-my-vps.example.com
+#my-vps.example.com

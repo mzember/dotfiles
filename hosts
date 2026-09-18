@@ -1,7 +1,0 @@
-# This file lists the remote hosts to sync dotfiles to.
-# The actual 'hosts' file is located at ~/.dotfiles/hosts and is not committed to Git.
-#
-# One hostname per line.
-# Lines starting with # are ignored.
-
-astratexvpn

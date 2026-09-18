@@ -73,17 +73,28 @@ EOF
 echo "--> Cleaning up local bundle file..."
 rm "$BUNDLE_FILE"
 
-# 5. Add the new host as a git remote on the canonical machine
+# 5. Add the new host as a git remote on the canonical machine.
+#    Use a path RELATIVE to the remote's own home (~/.dotfiles). Hardcoding
+#    the canonical machine's $HOME breaks hosts with a different username
+#    (e.g. a Kali VM at /home/kali vs the laptop at /home/z).
 echo "--> Adding '$HOST_ALIAS' as a git remote..."
 if /usr/bin/git --git-dir="$DOTFILES_DIR" remote | grep -q "^$HOST_ALIAS$"; then
-    /usr/bin/git --git-dir="$DOTFILES_DIR" remote set-url "$HOST_ALIAS" "$NEW_HOST:$HOME/.dotfiles"
+    /usr/bin/git --git-dir="$DOTFILES_DIR" remote set-url "$HOST_ALIAS" "$NEW_HOST:.dotfiles"
 else
-    /usr/bin/git --git-dir="$DOTFILES_DIR" remote add "$HOST_ALIAS" "$NEW_HOST:$HOME/.dotfiles"
+    /usr/bin/git --git-dir="$DOTFILES_DIR" remote add "$HOST_ALIAS" "$NEW_HOST:.dotfiles"
 fi
 
-# 6. Add host to the hosts file for the sync script
-HOSTS_FILE="$DOTFILES_DIR/hosts"
-if [ -f "$HOSTS_FILE" ] && ! grep -q "^$HOST_ALIAS$" "$HOSTS_FILE"; then
+# 6. Enable the host for the sync script. The hosts list is untracked and
+#    lives outside the work-tree so it is never published to GitHub.
+HOSTS_FILE="$HOME/.config/dotfiles/hosts"
+mkdir -p "$(dirname "$HOSTS_FILE")"
+if [ ! -f "$HOSTS_FILE" ]; then
+    cat > "$HOSTS_FILE" <<'HDR'
+# dotfiles-sync host list -- NOT tracked in git, not published to GitHub.
+# One host (ssh alias) per line. Prefix a line with '#' to disable it.
+HDR
+fi
+if ! grep -qE "^[[:space:]]*#?${HOST_ALIAS}[[:space:]]*$" "$HOSTS_FILE"; then
     echo "--> Adding '$HOST_ALIAS' to $HOSTS_FILE"
     echo "$HOST_ALIAS" >> "$HOSTS_FILE"
 fi

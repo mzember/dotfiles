@@ -1,0 +1,61 @@
+#!/bin/bash
+# dotfiles-selfupdate: safe, read-only self-heal for CONSUMER machines.
+#
+# Pulls the latest dotfiles from 'origin' (GitHub over HTTPS -> no push
+# credentials needed on the VM) and applies ONLY changes that cannot clobber
+# local work:
+#   - restores tracked files that are missing from the work-tree
+#   - fast-forwards tracked files that are NOT locally modified
+# Files with genuine local modifications are always left untouched.
+#
+# Safe to call on every login: it exits quietly when offline, when there is
+# no 'origin', or when there is nothing to do. It never pushes and never
+# deletes untracked files.
+set -uo pipefail
+
+dotfiles() { /usr/bin/git --git-dir="$HOME/.dotfiles/" --work-tree="$HOME" "$@"; }
+
+selfupdate() {
+    command -v git >/dev/null 2>&1 || return 0
+    [ -d "$HOME/.dotfiles" ] || return 0
+
+    # Consumer machines have an 'origin' remote (GitHub). Do nothing otherwise
+    # (e.g. the canonical laptop manages its own hosts and should not auto-pull).
+    dotfiles remote 2>/dev/null | grep -qx origin || return 0
+
+    local url
+    url=$(dotfiles remote get-url origin 2>/dev/null) || return 0
+
+    # Fast offline check so a login shell never hangs.
+    timeout 6 git ls-remote --heads "$url" main >/dev/null 2>&1 || return 0
+    timeout 30 dotfiles fetch --quiet origin main >/dev/null 2>&1 || return 0
+
+    local target
+    target=$(dotfiles rev-parse --verify --quiet FETCH_HEAD) || return 0
+
+    # Genuine local edits (work-tree vs current HEAD) -- never touch these.
+    local local_mod
+    local_mod=$(dotfiles -c status.showUntrackedFiles=no diff --name-only 2>/dev/null || true)
+
+    # Candidates: files missing (D) or changed (M) relative to the fetched tip.
+    local cand
+    cand=$(dotfiles diff --name-only --diff-filter=DM "$target" 2>/dev/null || true)
+    [ -n "$cand" ] || return 0
+
+    local updated=0 f
+    while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        if printf '%s\n' "$local_mod" | grep -qxF -- "$f"; then
+            continue   # locally modified -> preserve
+        fi
+        dotfiles checkout "$target" -- "$f" 2>/dev/null && updated=$((updated+1)) || true
+    done <<< "$cand"
+
+    if [ "$updated" -gt 0 ]; then
+        echo "dotfiles: self-updated $updated file(s) from origin." >&2
+        [ -n "$local_mod" ] && echo "dotfiles: kept local changes to: $(printf '%s ' $local_mod)" >&2
+    fi
+    return 0
+}
+
+selfupdate || true
