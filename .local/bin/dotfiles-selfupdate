@@ -13,7 +13,7 @@
 # deletes untracked files.
 set -uo pipefail
 
-dotfiles() { /usr/bin/git --git-dir="$HOME/.dotfiles/" --work-tree="$HOME" "$@"; }
+dotfiles() { /usr/bin/git -C "$HOME" --git-dir="$HOME/.dotfiles/" --work-tree="$HOME" "$@"; }
 
 selfupdate() {
     command -v git >/dev/null 2>&1 || return 0

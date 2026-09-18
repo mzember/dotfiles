@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Define a function for the dotfiles command. This is more robust than an alias for scripts.
 dotfiles() {
-    /usr/bin/git --git-dir="$HOME/.dotfiles/" --work-tree="$HOME" "$@"
+    /usr/bin/git -C "$HOME" --git-dir="$HOME/.dotfiles/" --work-tree="$HOME" "$@"
 }
 
 # --- Hosts file ------------------------------------------------------------
@@ -45,6 +45,11 @@ Usage: dotfiles-sync <command> [args]   (aliasable as 'dfs-sync')
                        --force  overwrite local changes on remote hosts.
                      With no target: push to all ENABLED hosts + github.
                      Offline/unreachable hosts are skipped, not fatal.
+  local [--force]    Apply committed 'main' to THIS machine's \$HOME work-tree
+                     (e.g. the laptop after committing from the VS Code
+                     worktree). Restores missing tracked files and updates
+                     behind files, but keeps unstaged local edits (unless
+                     --force). Never deletes files.
   fetch <host>       Fetch changes from a non-canonical machine for review.
   diff <host>        Diff local 'main' vs a fetched host.
   list               Show hosts and whether each is enabled or disabled.
@@ -106,7 +111,7 @@ cmd_push() {
         # real incoming delta while preserving actual local edits.
         local pre old dirty
         if ! pre=$(ssh -o BatchMode=yes -T "$host" 'bash -s' <<'EOF' 2>/dev/null
-dotfiles(){ /usr/bin/git --git-dir="$HOME/.dotfiles/" --work-tree="$HOME" "$@"; }
+dotfiles(){ /usr/bin/git -C "$HOME" --git-dir="$HOME/.dotfiles/" --work-tree="$HOME" "$@"; }
 printf 'OLD %s\n' "$(dotfiles rev-parse HEAD 2>/dev/null || echo none)"
 dotfiles -c status.showUntrackedFiles=no diff --name-only 2>/dev/null | sed 's/^/DIRTY /'
 EOF
@@ -130,7 +135,7 @@ EOF
         if ssh -o BatchMode=yes -T "$host" \
                "OLD='$old' FORCE='$FORCE_PUSH' DIRTY='$dirty'" 'bash -s' <<'REMOTE'
 set -uo pipefail
-dotfiles(){ /usr/bin/git --git-dir="$HOME/.dotfiles/" --work-tree="$HOME" "$@"; }
+dotfiles(){ /usr/bin/git -C "$HOME" --git-dir="$HOME/.dotfiles/" --work-tree="$HOME" "$@"; }
 is_dirty(){ [ -n "${DIRTY:-}" ] && printf '%s\n' "$DIRTY" | grep -qxF -- "$1"; }
 
 if [ -n "${OLD:-}" ] && [ "$OLD" != none ]; then
@@ -202,6 +207,47 @@ cmd_diff() {
     dotfiles diff "main..$host/main"
 }
 
+# --- local apply (bring THIS machine's $HOME up to committed 'main') --------
+cmd_local() {
+    local force=false
+    [ "${1:-}" = "--force" ] && force=true
+
+    # Genuine local edits = unstaged changes (work-tree vs index). The index is
+    # the reliable baseline: committing from another worktree, or pushing to a
+    # bare repo, moves 'main'/HEAD but never the index, so behind files show up
+    # here as clean while real edits show as unstaged.
+    local mod
+    mod=$(dotfiles -c status.showUntrackedFiles=no diff --name-only 2>/dev/null || true)
+
+    # Candidates: files that differ from main (present) plus files missing (D).
+    local cand
+    cand=$( { dotfiles diff --name-only main 2>/dev/null;
+              dotfiles diff --name-only --diff-filter=D main 2>/dev/null; } \
+            | awk 'NF' | sort -u )
+
+    if [ -z "$cand" ]; then
+        echo "This machine is already up to date with 'main'."
+        return 0
+    fi
+
+    local upd=0 kept=0 f
+    while IFS= read -r f; do
+        [ -n "$f" ] || continue
+        if [ "$force" != true ] && printf '%s\n' "$mod" | grep -qxF -- "$f"; then
+            echo "  kept (unstaged local edit): $f"
+            kept=$((kept+1)); continue
+        fi
+        if dotfiles checkout main -- "$f" 2>/dev/null; then
+            echo "  updated: $f"
+            upd=$((upd+1))
+        fi
+    done <<< "$cand"
+
+    echo "Local apply: updated $upd file(s); kept $kept local-modified file(s)."
+    [ "$kept" -gt 0 ] && echo "(Use 'dotfiles-sync local --force' to overwrite kept files.)"
+    return 0
+}
+
 # --- host on/off/list ------------------------------------------------------
 cmd_list() {
     ensure_hosts_file
@@ -248,6 +294,7 @@ cmd_off() {
 COMMAND="$1"; shift
 case "$COMMAND" in
     push)  cmd_push "$@" ;;
+    local) cmd_local "$@" ;;
     fetch) cmd_fetch "$@" ;;
     diff)  cmd_diff "$@" ;;
     list)  cmd_list "$@" ;;
