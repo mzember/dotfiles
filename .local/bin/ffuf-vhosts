@@ -1,19 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Usage:
-#   ffuf-vhost                  # uses `target`
-#   ffuf-vhost planning
-#   ffuf-vhost planning.htb
-#   ffuf-vhost -w 1
-#   ffuf-vhost planning -w 2 -t 80
-#   ffuf-vhost --https planning.htb
-#
-# Notes:
-# - If target has no dot, ".htb" is appended.
-# - Extra args are passed to ffuf.
-# - Response size is auto-detected using a random nonexistent subdomain.
-
 WORDLISTS=(
   "/usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt"
   "/usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt"
@@ -28,6 +15,7 @@ show_wordlists() {
     printf '  [%s] %s\n' "$i" "${WORDLISTS[$i]}"
   done
   echo "Default: -w 0"
+  echo "Tip: next time use -w 1 or -w 2 etc."
   echo
 }
 
@@ -39,42 +27,11 @@ rand_label() {
   tr -dc 'a-z0-9' </dev/urandom | head -c 12
 }
 
-detect_size() {
-  local scheme=$1
-  local host=$2
-  local fake
-  fake="$(rand_label).$host"
-
-  local main_code main_size invalid_code invalid_size
-
-  read -r main_code main_size < <(
-    curl -ksS -o /dev/null -w '%{http_code} %{size_download}\n' \
-      -H "Host: $host" \
-      -H "Accept-Encoding: identity" \
-      "${scheme}://${host}"
-  )
-
-  read -r invalid_code invalid_size < <(
-    curl -ksS -o /dev/null -w '%{http_code} %{size_download}\n' \
-      -H "Host: $fake" \
-      -H "Accept-Encoding: identity" \
-      "${scheme}://${host}"
-  )
-
-  echo "[*] Main site Host:    $host -> HTTP $main_code, $main_size bytes" >&2
-  echo "[*] Invalid Host:      $fake -> HTTP $invalid_code, $invalid_size bytes" >&2
-
-  printf '%s\n' "$invalid_size"
-}
-
 normalize_target() {
   local raw=$1
 
-  # Strip scheme if someone passes http://planning.htb
   raw="${raw#http://}"
   raw="${raw#https://}"
-
-  # Strip any trailing slash/path just in case
   raw="${raw%%/*}"
 
   if [[ "$raw" == *.* ]]; then
@@ -84,10 +41,126 @@ normalize_target() {
   fi
 }
 
+make_url() {
+  local scheme=$1
+  local host=$2
+  local port=${3:-}
+
+  if [[ -n "$port" ]]; then
+    printf '%s://%s:%s\n' "$scheme" "$host" "$port"
+  else
+    printf '%s://%s\n' "$scheme" "$host"
+  fi
+}
+
+detect_scheme() {
+  local host=$1
+  local port=${2:-}
+  local forced=${3:-auto}
+
+  if [[ "$forced" == "http" || "$forced" == "https" ]]; then
+    printf '%s\n' "$forced"
+    return
+  fi
+
+  local url http_headers location
+  url="$(make_url http "$host" "$port")"
+
+  http_headers="$(curl -ksSI -H "Host: $host" -H "Accept-Encoding: identity" "$url" || true)"
+  location="$(printf '%s\n' "$http_headers" | awk 'BEGIN{IGNORECASE=1} /^Location:/ {sub(/\r$/,""); print $2; exit}')"
+
+  if printf '%s\n' "$location" | grep -qi '^https://'; then
+    printf 'https\n'
+  else
+    printf 'http\n'
+  fi
+}
+
+probe_host() {
+  local url=$1
+  local host_header=$2
+  local prefix=$3
+  local tmp_base=${TMPDIR:-/tmp}/ffuf-vhost.$$.${prefix}
+
+  local hdr_file="${tmp_base}.headers"
+  local body_file="${tmp_base}.body"
+  local meta_file="${tmp_base}.meta"
+
+  curl -ksS \
+    -D "$hdr_file" \
+    -o "$body_file" \
+    -w '%{http_code} %{size_download} %{content_type} %{redirect_url}\n' \
+    -H "Host: $host_header" \
+    -H "Accept-Encoding: identity" \
+    "$url" > "$meta_file"
+
+  local code size ctype redirect
+  read -r code size ctype redirect < "$meta_file"
+
+  echo "$code|$size|$ctype|$redirect|$hdr_file|$body_file|$meta_file"
+}
+
+print_probe() {
+  local title=$1
+  local host_header=$2
+  local code=$3
+  local size=$4
+  local ctype=$5
+  local redirect=$6
+  local hdr_file=$7
+  local body_file=$8
+
+  echo "===== $title ====="
+  echo "[*] Host header: $host_header"
+  echo "[*] HTTP code:   $code"
+  echo "[*] Size:        $size"
+  echo "[*] Type:        ${ctype:--}"
+  if [[ -n "$redirect" ]]; then
+    echo "[*] Redirect:    $redirect"
+  fi
+  echo
+  echo "--- headers ---"
+  cat "$hdr_file"
+  echo
+  echo "--- body ---"
+  cat "$body_file"
+  echo
+}
+
+cleanup_probe_files() {
+  local hdr_file=$1
+  local body_file=$2
+  local meta_file=$3
+  rm -f -- "$hdr_file" "$body_file" "$meta_file"
+}
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ffuf-vhost [target] [-w N] [-p PORT] [--http|--https] [extra ffuf args...]
+
+Examples:
+  ffuf-vhost
+  ffuf-vhost planning
+  ffuf-vhost planning.htb
+  ffuf-vhost planning -p 8080
+  ffuf-vhost planning -w 1
+  ffuf-vhost planning --https
+  ffuf-vhost planning -p 8443 --https -mc all
+
+Notes:
+  - If target has no dot, .htb is appended.
+  - If scheme is not forced, script starts with HTTP and switches to HTTPS if it sees a redirect to https://
+  - The invalid-host response size is used as -fs
+  - Extra arguments are passed to ffuf
+EOF
+}
+
 main() {
   local wl_index=0
-  local scheme="http"
+  local port=""
   local target_arg=""
+  local forced_scheme="auto"
   local extra_args=()
 
   show_wordlists
@@ -96,31 +169,22 @@ main() {
     case "$1" in
       -w|--wordlist)
         shift
-        [[ $# -gt 0 ]] || { echo "[-] Missing value after -w/--wordlist" >&2; exit 1; }
+        [[ $# -gt 0 ]] || { echo "[-] Missing value after $1" >&2; exit 1; }
         wl_index="$1"
         ;;
+      -p|--port)
+        shift
+        [[ $# -gt 0 ]] || { echo "[-] Missing value after -p/--port" >&2; exit 1; }
+        port="$1"
+        ;;
       --http)
-        scheme="http"
+        forced_scheme="http"
         ;;
       --https)
-        scheme="https"
+        forced_scheme="https"
         ;;
       -h|--help)
-        cat <<'EOF'
-Usage:
-  ffuf-vhost [target] [-w N] [--http|--https] [extra ffuf args...]
-
-Examples:
-  ffuf-vhost
-  ffuf-vhost planning
-  ffuf-vhost planning.htb
-  ffuf-vhost -w 1
-  ffuf-vhost planning -w 2 -t 80
-  ffuf-vhost --https planning.htb
-
-Tips:
-  Next time you can select another list with -w 1 or -w 2.
-EOF
+        usage
         exit 0
         ;;
       -*)
@@ -137,34 +201,21 @@ EOF
     shift
   done
 
-  if ! have_cmd ffuf; then
-    echo "[-] ffuf not found" >&2
-    exit 1
-  fi
+  have_cmd ffuf || { echo "[-] ffuf not found" >&2; exit 1; }
+  have_cmd curl || { echo "[-] curl not found" >&2; exit 1; }
 
-  if ! have_cmd curl; then
-    echo "[-] curl not found" >&2
-    exit 1
-  fi
+  [[ "$wl_index" =~ ^[0-9]+$ ]] || { echo "[-] Wordlist index must be a number" >&2; exit 1; }
+  (( wl_index >= 0 && wl_index < ${#WORDLISTS[@]} )) || { echo "[-] Invalid wordlist index: $wl_index" >&2; exit 1; }
 
-  if [[ ! "$wl_index" =~ ^[0-9]+$ ]]; then
-    echo "[-] Wordlist index must be a number" >&2
-    exit 1
-  fi
-
-  if (( wl_index < 0 || wl_index >= ${#WORDLISTS[@]} )); then
-    echo "[-] Invalid wordlist index: $wl_index" >&2
-    exit 1
+  if [[ -n "$port" ]]; then
+    [[ "$port" =~ ^[0-9]+$ ]] || { echo "[-] Port must be numeric" >&2; exit 1; }
   fi
 
   local raw_target
   if [[ -n "$target_arg" ]]; then
     raw_target="$target_arg"
   else
-    if ! have_cmd target; then
-      echo "[-] No target argument given and command 'target' not found" >&2
-      exit 1
-    fi
+    have_cmd target || { echo "[-] No target argument given and command 'target' not found" >&2; exit 1; }
     raw_target="$(target)"
   fi
 
@@ -172,37 +223,59 @@ EOF
   host="$(normalize_target "$raw_target")"
 
   local wordlist="${WORDLISTS[$wl_index]}"
-  if [[ ! -f "$wordlist" ]]; then
-    echo "[-] Wordlist not found: $wordlist" >&2
-    exit 1
-  fi
+  [[ -f "$wordlist" ]] || { echo "[-] Wordlist not found: $wordlist" >&2; exit 1; }
 
-  echo "[*] Raw target: $raw_target"
-  echo "[*] Normalized host: $host"
-  echo "[*] Scheme: $scheme"
+  local scheme
+  scheme="$(detect_scheme "$host" "$port" "$forced_scheme")"
+
+  local url
+  url="$(make_url "$scheme" "$host" "$port")"
+
+  local fake_host
+  fake_host="$(rand_label).$host"
+
+  echo "[*] Raw target:       $raw_target"
+  echo "[*] Normalized host:  $host"
+  echo "[*] Scheme:           $scheme"
+  if [[ -n "$port" ]]; then
+    echo "[*] Port:             $port"
+  fi
+  echo "[*] URL:              $url"
   echo "[*] Wordlist [$wl_index]: $wordlist"
   echo
 
-  echo "[*] Detecting baseline response size using random Host header..."
-  local fs
-  fs="$(detect_size "$scheme" "$host")"
-  echo "[*] Auto-detected -fs: $fs"
-  echo
+  local main_probe invalid_probe
+  main_probe="$(probe_host "$url" "$host" "main")"
+  invalid_probe="$(probe_host "$url" "$fake_host" "invalid")"
 
+  local main_code main_size main_ctype main_redirect main_hdr main_body main_meta
+  local invalid_code invalid_size invalid_ctype invalid_redirect invalid_hdr invalid_body invalid_meta
+
+  IFS='|' read -r main_code main_size main_ctype main_redirect main_hdr main_body main_meta <<< "$main_probe"
+  IFS='|' read -r invalid_code invalid_size invalid_ctype invalid_redirect invalid_hdr invalid_body invalid_meta <<< "$invalid_probe"
+
+  print_probe "MAIN HOST RESPONSE" "$host" "$main_code" "$main_size" "$main_ctype" "$main_redirect" "$main_hdr" "$main_body"
+  print_probe "INVALID HOST RESPONSE" "$fake_host" "$invalid_code" "$invalid_size" "$invalid_ctype" "$invalid_redirect" "$invalid_hdr" "$invalid_body"
+
+  echo "[*] Auto-detected -fs from invalid host: $invalid_size"
+  echo
   echo "[*] Running:"
   printf '    ffuf -w %q -H %q -u %q -fs %q' \
-    "$wordlist" "Host: FUZZ.$host" "${scheme}://$host" "$fs"
+    "$wordlist" "Host: FUZZ.$host" "$url" "$invalid_size"
   if [[ ${#extra_args[@]} -gt 0 ]]; then
     printf ' %q' "${extra_args[@]}"
   fi
   echo
   echo
 
+  cleanup_probe_files "$main_hdr" "$main_body" "$main_meta"
+  cleanup_probe_files "$invalid_hdr" "$invalid_body" "$invalid_meta"
+
   exec ffuf \
     -w "$wordlist" \
     -H "Host: FUZZ.$host" \
-    -u "${scheme}://${host}" \
-    -fs "$fs" \
+    -u "$url" \
+    -fs "$invalid_size" \
     "${extra_args[@]}"
 }
 
