@@ -15,7 +15,7 @@ ensure_hosts_file() {
     mkdir -p "$(dirname "$HOSTS_FILE")"
     if [ ! -f "$HOSTS_FILE" ]; then
         cat > "$HOSTS_FILE" <<'HDR'
-# dotfiles-sync host list -- NOT tracked in git, not published to GitHub.
+# dotfiles sync host list -- NOT tracked in git, not published to GitHub.
 # One host (ssh alias) per line. Prefix a line with '#' to disable it.
 HDR
     fi
@@ -38,7 +38,7 @@ esc_re() { printf '%s' "$1" | sed 's/[.[\*^$/]/\\&/g'; }
 
 usage() {
     cat >&2 <<USAGE
-Usage: dotfiles-sync <command> [args]   (aliasable as 'dfs-sync')
+Usage: dotfiles sync <command> [args]
 
   push [target...]   Push updates from the canonical repo.
                      Targets: specific hosts, 'all', or 'github'.
@@ -89,7 +89,7 @@ cmd_push() {
 
     if [ ${#TARGET_HOSTS[@]} -eq 0 ] && [ "$PUSH_TO_GITHUB" = false ]; then
         echo "No hosts to sync. Enabled hosts come from: $HOSTS_FILE"
-        echo "Use 'dotfiles-sync list' to review, or name a target (host, 'all', 'github')."
+        echo "Use 'dotfiles sync list' to review, or name a target (host, 'all', 'github')."
         exit 0
     fi
 
@@ -203,7 +203,7 @@ cmd_diff() {
     [ "$#" -eq 1 ] || { echo "Error: specify exactly one host to diff against." >&2; usage; }
     local host="$1"
     echo "--- Diff between local 'main' and '$host/main' ---"
-    echo "(Run 'dotfiles-sync fetch $host' first to update the remote-tracking branch.)"
+    echo "(Run 'dotfiles sync fetch $host' first to update the remote-tracking branch.)"
     dotfiles diff "main..$host/main"
 }
 
@@ -244,7 +244,7 @@ cmd_local() {
     done <<< "$cand"
 
     echo "Local apply: updated $upd file(s); kept $kept local-modified file(s)."
-    [ "$kept" -gt 0 ] && echo "(Use 'dotfiles-sync local --force' to overwrite kept files.)"
+    [ "$kept" -gt 0 ] && echo "(Use 'dotfiles sync local --force' to overwrite kept files.)"
     return 0
 }
 
@@ -260,7 +260,7 @@ cmd_list() {
 }
 
 cmd_on() {
-    [ "$#" -eq 1 ] || { echo "Usage: dotfiles-sync on <host>" >&2; exit 1; }
+    [ "$#" -eq 1 ] || { echo "Usage: dotfiles sync on <host>" >&2; exit 1; }
     ensure_hosts_file
     local host="$1" re; re=$(esc_re "$host")
     if grep -qE "^[[:space:]]*${re}[[:space:]]*$" "$HOSTS_FILE"; then
@@ -275,7 +275,7 @@ cmd_on() {
 }
 
 cmd_off() {
-    [ "$#" -eq 1 ] || { echo "Usage: dotfiles-sync off <host>" >&2; exit 1; }
+    [ "$#" -eq 1 ] || { echo "Usage: dotfiles sync off <host>" >&2; exit 1; }
     ensure_hosts_file
     local host="$1" re; re=$(esc_re "$host")
     if grep -qE "^[[:space:]]*${re}[[:space:]]*$" "$HOSTS_FILE"; then

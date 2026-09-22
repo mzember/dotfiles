@@ -479,11 +479,11 @@ p() {
     fi
 }
 
-# Define a function for the dotfiles command. This is more robust than an alias for scripts.
-# Even when it is in another file, we need it in .zshrc
-dotfiles() {
-    /usr/bin/git --git-dir="$HOME/.dotfiles/" --work-tree="$HOME" "$@"
-}
+# Dotfiles management is the 'dotfiles' umbrella command (~/.local/bin/dotfiles):
+#   dotfiles help | git ... | sync ... | add-host ... | selfupdate
+# 'dot' is the short alias for raw bare-repo git (~/.local/bin/dot).
+# (The old dotfiles() git-wrapper function was removed to free the name for the
+# umbrella script; use 'dot' or 'dotfiles git' instead.)
 
 alias z='vim ~/.zshrc'
 alias wd='source ~/bin/wd'
@@ -498,10 +498,9 @@ export PATH="$HOME/.local/bin:$PATH"
 #export PATH="$HOME/.local/bin/utils:$PATH"
 
 # --- Machine-specific configurations ---
-# Load hostname-specific configurations if they exist.
+# Load per-machine config by FULL hostname (set via `hostnamectl set-hostname`).
 # This allows for customization per machine without polluting the main dotfiles.
-if [[ -n "$HOST" ]]; then
-    HOSTNAME_SHORT=$(echo "$HOST" | cut -d'.' -f1) # Get short hostname if FQDN
-    [[ -f "$HOME/.zshrc.$HOSTNAME_SHORT" ]] && source "$HOME/.zshrc.$HOSTNAME_SHORT"
+if [[ -n "$HOST" && -f "$HOME/.zshrc.$HOST" ]]; then
+    source "$HOME/.zshrc.$HOST"
 fi
-# Example: Create a file ~/.zshrc.kali for kali-specific settings.
+# Example: on a host named 'kalivm.virtualbox', create ~/.zshrc.kalivm.virtualbox
