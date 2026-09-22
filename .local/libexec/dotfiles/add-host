@@ -90,7 +90,7 @@ HOSTS_FILE="$HOME/.config/dotfiles/hosts"
 mkdir -p "$(dirname "$HOSTS_FILE")"
 if [ ! -f "$HOSTS_FILE" ]; then
     cat > "$HOSTS_FILE" <<'HDR'
-# dotfiles-sync host list -- NOT tracked in git, not published to GitHub.
+# dotfiles sync host list -- NOT tracked in git, not published to GitHub.
 # One host (ssh alias) per line. Prefix a line with '#' to disable it.
 HDR
 fi

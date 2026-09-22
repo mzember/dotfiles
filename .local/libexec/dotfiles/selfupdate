@@ -1,5 +1,5 @@
 #!/bin/bash
-# dotfiles-selfupdate: safe, read-only self-heal for CONSUMER machines.
+# dotfiles selfupdate: safe, read-only self-heal for CONSUMER machines.
 #
 # Pulls the latest dotfiles from 'origin' (GitHub over HTTPS -> no push
 # credentials needed on the VM) and applies ONLY changes that cannot clobber

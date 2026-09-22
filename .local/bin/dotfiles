@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# dotfiles -- umbrella command for dotfiles MANAGEMENT.
+#
+# One entry point you can rediscover months later with `dotfiles help`.
+# Pentest/CTF tools (myip, target, ffuf-vhosts, ...) are intentionally kept as
+# short standalone commands, not subcommands here.
+set -euo pipefail
+
+# Locate the backing implementations next to this script (.local/libexec/dotfiles).
+SELF="$(readlink -f "$0" 2>/dev/null || echo "$0")"
+BIN_DIR="$(cd "$(dirname "$SELF")" && pwd)"
+LIBEXEC="$BIN_DIR/../libexec/dotfiles"
+
+# Raw bare-repo git wrapper (also available as the short 'dot' command).
+git_wrap() { /usr/bin/git -C "$HOME" --git-dir="$HOME/.dotfiles/" --work-tree="$HOME" "$@"; }
+
+usage() {
+    cat <<'USAGE'
+dotfiles -- manage your dotfiles (bare repo at ~/.dotfiles)
+
+Usage: dotfiles <command> [args]
+
+  git <args>          Raw git against the bare repo (e.g. `dotfiles git status`).
+                      Short alias for this is the `dot` command.
+  sync <args>         Sync to/from machines. Subcommands:
+                        push [target...] [--force]   push to hosts / 'all' / 'github'
+                        local [--force]              apply main to THIS machine
+                        list | on <host> | off <host>
+                        fetch <host> | diff <host>
+  add-host <user@host>  Set up a new machine as a consumer.
+  selfupdate          Pull latest from origin (consumers; safe, non-clobbering).
+  edit                Open the dotfiles work-tree in $EDITOR.
+  help                Show this help.
+
+Notes:
+  - Host list lives (untracked) at ~/.config/dotfiles/hosts.
+  - Pentest tools stay standalone: myip, target, ffuf-vhosts, digq, ...
+USAGE
+}
+
+cmd="${1:-help}"
+[ $# -gt 0 ] && shift || true
+
+case "$cmd" in
+    git)         git_wrap "$@" ;;
+    sync)        exec "$LIBEXEC/sync" "$@" ;;
+    add-host)    exec "$LIBEXEC/add-host" "$@" ;;
+    selfupdate)  exec "$LIBEXEC/selfupdate" "$@" ;;
+    edit)        exec "${EDITOR:-vi}" "${DOTFILES_WORKTREE:-$HOME/vs/dotfiles}" ;;
+    help|-h|--help) usage ;;
+    *) echo "dotfiles: unknown command '$cmd'" >&2; echo >&2; usage >&2; exit 1 ;;
+esac

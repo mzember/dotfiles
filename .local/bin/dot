@@ -1,2 +1,4 @@
 #!/usr/bin/env bash
-git --git-dir="$HOME/.dotfiles" --work-tree="$HOME" "$@"
+# dot -- short alias for raw git against the bare dotfiles repo.
+# Equivalent to `dotfiles git ...`.
+exec /usr/bin/git -C "$HOME" --git-dir="$HOME/.dotfiles" --work-tree="$HOME" "$@"

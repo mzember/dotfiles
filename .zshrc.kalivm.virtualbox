@@ -3,6 +3,6 @@ export PATH="$HOME/kali-shared/tools:$PATH"
 # local edits, never deletes untracked files, exits quietly when offline.
 # Backgrounded so it never delays the shell. To enable on another consumer
 # machine, add this same block to that machine's ~/.zshrc.<hostname>.
-if command -v dotfiles-selfupdate >/dev/null 2>&1; then
-    ( dotfiles-selfupdate >>"$HOME/.dotfiles-selfupdate.log" 2>&1 & ) 2>/dev/null
+if command -v dotfiles >/dev/null 2>&1; then
+    ( dotfiles selfupdate >>"$HOME/.dotfiles-selfupdate.log" 2>&1 & ) 2>/dev/null
 fi
