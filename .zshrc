@@ -1,4 +1,3 @@
-echo .zshrc started
 # ~/.zshrc file for zsh interactive shells.
 # see /usr/share/doc/zsh/examples/zshrc for examples
 setopt autocd              # change directory just by typing its name
@@ -342,130 +341,8 @@ setopt APPEND_HISTORY
 alias his='builtin history | cut -c 8-'
 alias h='builtin history 0'
 
-# # share history: Up, Down: local. ^Up, ^Down: global shared.
-# #
-# # GPT:
-# setopt share_history
-# 
-# up-line-or-local-history() {
-#   zle set-local-history 1
-#   zle up-line-or-history
-#   zle set-local-history 0
-# }
-# zle -N up-line-or-local-history
-# 
-# down-line-or-local-history() {
-#   zle set-local-history 1
-#   zle down-line-or-history
-#   zle set-local-history 0
-# }
-# zle -N down-line-or-local-history
-# 
-# # Adjust sequences using `cat` if needed:
-# bindkey '^[[A'     up-line-or-local-history     # Up   -> local
-# bindkey '^[[B'     down-line-or-local-history   # Down -> local
-# 
-# bindkey '^[[1;5A'  up-line-or-history           # Ctrl+Up   -> global
-# bindkey '^[[1;5B'  down-line-or-history         # Ctrl+Down -> global
-# 
-# bindkey '^R' history-incremental-search-backward  # Ctrl+R -> global search
-# 
-#
-# Source - https://superuser.com/questions/446594/separate-up-arrow-lookback-for-local-and-global-zsh-history/691603#691603
-# Posted by lumbric, modified by community. See post 'Timeline' for change history
-# Retrieved 2025-11-17, License - CC BY-SA 3.0
-
-# Posted by Martin Geisler
-# Retrieved 2025-11-17, License - CC BY-SA 4.0
-# 
-# function up-line-or-history() {
-#     zle set-local-history 1
-#     zle .up-line-or-history
-#     zle set-local-history 0
-# }
-# 
-# function down-line-or-history() {
-#     zle set-local-history 1
-#     zle .down-line-or-history
-#     zle set-local-history 0
-# }
-# 
-# # Overwrite existing {up,down}-line-or-history widgets with the functions above.
-# zle -N up-line-or-history
-# zle -N down-line-or-history
-# 
-# ###
-# 
-# # Stepping through local history.
-# 
-# # Stepping through global history.
-# bindkey "^[[1;5A" .up-line-or-history                # Ctrl + Cursor Up
-# bindkey "^[[1;5B" .down-line-or-history           # Ctrl + Cursor Down
-# 
-
-# 
-# # local:
-# bindkey "OA" up-line-or-local-history
-# bindkey "OB" down-line-or-local-history
-# up-line-or-local-history() {
-#     zle set-local-history 1
-#     zle up-line-or-history
-#     zle set-local-history 0
-# }
-# zle -N up-line-or-local-history
-# down-line-or-local-history() {
-#     zle set-local-history 1
-#     zle down-line-or-history
-#     zle set-local-history 0
-# }
-# zle -N down-line-or-local-history
-# 
-
-# # global:
-# bindkey "[1;5A" up-line-or-history    # [CTRL] + Cursor up
-# bindkey "[1;5B" down-line-or-history  # [CTRL] + Cursor down
-# 
-# setopt SHARE_HISTORY
-# # for CTRL-R, it will be global:
-# # 	could not:
-# # 	zle set-local-history 0
-# # 	/home/kali/.zshrc:zle:390: widgets can only be called when ZLE is active
-# 
 
 
-# EOhistory behavior
-
-
-# Helper script by @sechurity
-# Session logging via script(1) -- pentest evidence. OPT-IN per machine:
-#   enable it on a host with:   touch ~/.dotfiles-session-log
-# (Off by default, e.g. on the laptop; tmux auto-start below stays on everywhere.)
-if [ -f "$HOME/.dotfiles-session-log" ] && [ -z "$TMUX" ] && [ -z "${UNDER_SCRIPT}" ]; then
-    logdir=${HOME}/script-logs
-    logfile=${logdir}/$(date +%F.%H-%M-%S).$$.log
-    timingfile=${logdir}/$(date +%F.%H-%M-%S).$$.log.timing
-
-    mkdir -p ${logdir}
-    export UNDER_SCRIPT=${logfile}
-    echo "[+] Starting script with output file $logfile"
-    script -q -f ${logfile} --log-timing=$timingfile
-
-    exit
-fi
-
-###########################
-# tmux
-###########################
-_not_inside_tmux() { [[ -z "$TMUX" ]] }
-
-ensure_tmux_is_running() {
-  if _not_inside_tmux; then
-    tat
-  fi
-}
-
-ensure_tmux_is_running
-##########################
 
 mkcd ()
 {
@@ -490,7 +367,6 @@ p() {
 alias z='vim ~/.zshrc'
 alias wd='source ~/bin/wd'
 alias dig='echo "ℹ️  Hint: for multi-record queries use digq <domain>" >&2; /usr/bin/dig'
-echo .zshrc finished
 
 export PATH="$HOME/.local/bin:$PATH"
 # In the future, maybe:
@@ -518,3 +394,28 @@ if [[ -n "$HOST" && -f "$HOME/.zshrc.$HOST" ]]; then
     source "$HOME/.zshrc.$HOST"
 fi
 # Example: on a host named 'kalivm.virtualbox', create ~/.zshrc.kalivm.virtualbox
+
+###########################
+# Session auto-start -- KEEP LAST, so PATH, aliases and per-host config
+# (~/.zshrc.$HOST) are all loaded before we hand off to script/tmux.
+###########################
+
+# Session logging via script(1) -- pentest evidence. OPT-IN per machine:
+#   enable on a host with:   touch ~/.dotfiles-session-log
+if [ -f "$HOME/.dotfiles-session-log" ] && [ -z "$TMUX" ] && [ -z "${UNDER_SCRIPT}" ]; then
+    logdir=${HOME}/script-logs
+    logfile=${logdir}/$(date +%F.%H-%M-%S).$$.log
+    timingfile=${logdir}/$(date +%F.%H-%M-%S).$$.log.timing
+    mkdir -p ${logdir}
+    export UNDER_SCRIPT=${logfile}
+    echo "[+] Starting script with output file $logfile"
+    script -q -f ${logfile} --log-timing=$timingfile
+    exit
+fi
+
+# tmux: auto-attach/create a session on interactive login (to build the habit).
+# (Replaces the old 'tat' helper, which isn't installed here.) Skipped inside
+# VS Code's integrated terminal.
+if [ -z "$TMUX" ] && [ "$TERM_PROGRAM" != vscode ] && command -v tmux >/dev/null 2>&1; then
+    tmux new-session -A -s main
+fi
