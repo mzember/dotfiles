@@ -437,8 +437,10 @@ alias h='builtin history 0'
 
 
 # Helper script by @sechurity
-# Create a log directory, a log file and start logging
-if [ -z "$TMUX" ]  && [ -z "${UNDER_SCRIPT}" ]; then
+# Session logging via script(1) -- pentest evidence. OPT-IN per machine:
+#   enable it on a host with:   touch ~/.dotfiles-session-log
+# (Off by default, e.g. on the laptop; tmux auto-start below stays on everywhere.)
+if [ -f "$HOME/.dotfiles-session-log" ] && [ -z "$TMUX" ] && [ -z "${UNDER_SCRIPT}" ]; then
     logdir=${HOME}/script-logs
     logfile=${logdir}/$(date +%F.%H-%M-%S).$$.log
     timingfile=${logdir}/$(date +%F.%H-%M-%S).$$.log.timing
@@ -496,6 +498,18 @@ export PATH="$HOME/.local/bin:$PATH"
 #export PATH="$HOME/.local/bin/dotfiles:$PATH"
 #export PATH="$HOME/.local/bin/hacking:$PATH"
 #export PATH="$HOME/.local/bin/utils:$PATH"
+
+# --- Merged from ~/.bashrc (universal; all hosts) ---
+alias rm='rm -i --one-file-system'
+alias cp='cp -i'
+alias mv='mv -i'
+alias g='builtin history 0 | grep -i'
+export NVIMRC="$HOME/.vimrc"
+export LESSOPEN=
+export GCC_COLORS='error=01;31:warning=01;35:note=01;36:caret=01;32:locus=01:quote=01'
+GPG_TTY=$(tty); export GPG_TTY
+[ -d "$HOME/bin" ] && export PATH="$HOME/bin:$PATH"
+[ -d "$HOME/go/bin" ] && export PATH="$HOME/go/bin:$PATH"
 
 # --- Machine-specific configurations ---
 # Load per-machine config by FULL hostname (set via `hostnamectl set-hostname`).
