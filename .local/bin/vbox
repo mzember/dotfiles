@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# vbox -- start VirtualBox (host only) with the Qt accessibility crash workaround.
+#
+#   vbox                 open the VirtualBox manager
+#   vbox <vm> [<vm>...]  start VMs detached (--type separate): the VM runs in
+#                        VBoxHeadless, so a GUI crash does not kill the guest.
+#                        Reattach by starting it again from the manager.
+#
+# Workaround: VirtualBox 7.2 / Qt 6 SIGSEGV in QWidget::accessibleName(this=NULL)
+# when the host screen work area changes (dock unplug, monitor off, scale change)
+# while a window is maximized. Qt ignores QT_ACCESSIBILITY=0; pointing it at a
+# nonexistent AT-SPI bus keeps the accessibility bridge off, which avoids it.
+# Cost: no screen-reader support in VirtualBox windows.
+set -euo pipefail
+
+A11Y_OFF='AT_SPI_BUS_ADDRESS=unix:path=/nonexistent'
+
+if [ "$#" -eq 0 ]; then
+    env "$A11Y_OFF" VirtualBox >/dev/null 2>&1 &
+    disown
+    exit 0
+fi
+
+case "$1" in
+    -h|--help) sed -n '2,7p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -l|--list) exec VBoxManage list vms ;;
+esac
+
+for vm in "$@"; do
+    VBoxManage startvm "$vm" --type=separate --putenv="$A11Y_OFF"
+done
