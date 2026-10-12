@@ -18,6 +18,33 @@ BUNDLE_FILE="dotfiles_repo.bundle"
 
 echo "--- Preparing to set up new host: $NEW_HOST (alias: $HOST_ALIAS) ---"
 
+# 0. Preflight: the sync model is git-over-SSH, so git MUST exist on the
+#    consumer -- it runs the transport (receive-pack), applies the checkout,
+#    and detects local edits to avoid clobbering them. Check for it BEFORE
+#    creating or copying the bundle, so a git-less box fails fast and clean
+#    instead of leaving a stray bundle and a half-done setup. On a fresh
+#    Debian/Kali box git is one 'apt-get install' away, so offer to install it.
+echo "--> Checking that the remote has git..."
+if ssh -T "$NEW_HOST" 'command -v git >/dev/null 2>&1'; then
+    echo "    git is present."
+else
+    echo "    git not found on $NEW_HOST." >&2
+    if ssh -T "$NEW_HOST" 'command -v apt-get >/dev/null 2>&1 && command -v sudo >/dev/null 2>&1'; then
+        echo "--> Attempting to install git via apt-get (needs sudo on the remote)..."
+        if ssh -t "$NEW_HOST" 'sudo apt-get update && sudo apt-get install -y git'; then
+            echo "    git installed."
+        else
+            echo "    Automatic install failed. Install git on $NEW_HOST and re-run:" >&2
+            echo "        ssh $NEW_HOST 'sudo apt-get update && sudo apt-get install -y git'" >&2
+            exit 1
+        fi
+    else
+        echo "    Cannot auto-install (no apt-get/sudo). Install git on $NEW_HOST and re-run, e.g.:" >&2
+        echo "        ssh $NEW_HOST 'sudo apt-get install -y git'   # Debian/Kali/Ubuntu" >&2
+        exit 1
+    fi
+fi
+
 # 1. Create a bundle of the canonical repo
 echo "--> Creating git bundle..."
 /usr/bin/git --git-dir="$DOTFILES_DIR" bundle create "$BUNDLE_FILE" --all

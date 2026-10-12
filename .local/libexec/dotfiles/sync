@@ -245,6 +245,22 @@ cmd_local() {
 
     echo "Local apply: updated $upd file(s); kept $kept local-modified file(s)."
     [ "$kept" -gt 0 ] && echo "(Use 'dotfiles sync local --force' to overwrite kept files.)"
+
+    # Surface edits that live only in the editing worktree: 'local' applies
+    # COMMITTED main, so uncommitted worktree changes cannot reach $HOME until
+    # they are reviewed and committed. Flag them rather than apply silently.
+    local wt="${DOTFILES_WORKTREE:-$HOME/vs/dotfiles}"
+    if [ -e "$wt/.git" ]; then
+        local wt_dirty
+        wt_dirty="$(/usr/bin/git -C "$wt" status --porcelain 2>/dev/null || true)"
+        if [ -n "$wt_dirty" ]; then
+            echo "Note: worktree $wt has uncommitted edits not yet on main:"
+            printf '%s\n' "$wt_dirty" | sed 's/^/    /'
+            echo "      Review:  git -C $wt diff            (unstaged edits)"
+            echo "               git -C $wt diff --staged   (staged edits)"
+            echo "      Then commit them and re-run 'dotfiles sync local'."
+        fi
+    fi
     return 0
 }
 

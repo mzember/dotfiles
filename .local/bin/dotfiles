@@ -11,8 +11,38 @@ SELF="$(readlink -f "$0" 2>/dev/null || echo "$0")"
 BIN_DIR="$(cd "$(dirname "$SELF")" && pwd)"
 LIBEXEC="$BIN_DIR/../libexec/dotfiles"
 
+# Dev/testing: run the implementations from the editing worktree instead of the
+# deployed copy, so you can test changes before committing or propagating them.
+# Usage:  DOTFILES_DEV=1 dotfiles add-host user@host
+WORKTREE="${DOTFILES_WORKTREE:-$HOME/vs/dotfiles}"
+if [ -n "${DOTFILES_DEV:-}" ]; then
+    LIBEXEC="$WORKTREE/.local/libexec/dotfiles"
+    echo "dotfiles: DEV mode -- using $LIBEXEC" >&2
+fi
+
 # Raw bare-repo git wrapper (also available as the short 'dot' command).
 git_wrap() { /usr/bin/git -C "$HOME" --git-dir="$HOME/.dotfiles/" --work-tree="$HOME" "$@"; }
+
+# Advisory: on the canonical laptop, flag two INDEPENDENT facts (either, both,
+# or neither can hold):
+#   (a) the editing worktree has uncommitted edits -- unpublished work that is
+#       not on 'main' yet (it may already be live in $HOME, as when you test a
+#       shell config in place); the fix is review + commit, not 'sync local'.
+#   (b) $HOME is behind committed main -- committed changes not yet applied to
+#       this machine's work-tree; the fix is 'sync local'.
+# Note: a dirty worktree does NOT imply $HOME is stale. Non-fatal, stderr only.
+# No-ops on consumers (no editing worktree there).
+staleness_note() {
+    [ -e "$WORKTREE/.git" ] || return 0
+    local dirty behind
+    dirty="$(/usr/bin/git -C "$WORKTREE" status --porcelain 2>/dev/null || true)"
+    behind="$(git_wrap diff --cached --name-only main 2>/dev/null || true)"
+    {
+        [ -n "$dirty" ]  && echo "dotfiles: worktree $WORKTREE has uncommitted edits -- review (git -C $WORKTREE diff) and commit to publish them."
+        [ -n "$behind" ] && echo "dotfiles: \$HOME is behind committed main -- run: dotfiles sync local"
+    } >&2
+    return 0
+}
 
 usage() {
     cat <<'USAGE'
@@ -35,6 +65,8 @@ Usage: dotfiles <command> [args]
 Notes:
   - Host list lives (untracked) at ~/.config/dotfiles/hosts.
   - Pentest tools stay standalone: myip, target, ffuf-vhosts, digq, ...
+  - DOTFILES_DEV=1 runs implementations from the worktree ($DOTFILES_WORKTREE,
+    default ~/vs/dotfiles) -- test edits before committing.
 USAGE
 }
 
@@ -46,7 +78,7 @@ case "$cmd" in
     sync)        exec "$LIBEXEC/sync" "$@" ;;
     add-host)    exec "$LIBEXEC/add-host" "$@" ;;
     selfupdate)  exec "$LIBEXEC/selfupdate" "$@" ;;
-    edit)        exec "${EDITOR:-vi}" "${DOTFILES_WORKTREE:-$HOME/vs/dotfiles}" ;;
-    help|-h|--help) usage ;;
+    edit)        exec "${EDITOR:-vi}" "$WORKTREE" ;;
+    help|-h|--help) usage; staleness_note ;;
     *) echo "dotfiles: unknown command '$cmd'" >&2; echo >&2; usage >&2; exit 1 ;;
 esac
