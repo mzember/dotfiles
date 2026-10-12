@@ -365,6 +365,7 @@ p() {
 # umbrella script; use 'dot' or 'dotfiles git' instead.)
 
 alias z='vim ~/.zshrc'
+alias t='vim ~/.config/tmux/tmux.conf'
 alias wd='source ~/bin/wd'
 alias dig='echo "ℹ️  Hint: for multi-record queries use digq <domain>" >&2; /usr/bin/dig'
 
