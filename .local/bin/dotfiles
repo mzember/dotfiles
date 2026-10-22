@@ -34,9 +34,19 @@ git_wrap() { /usr/bin/git -C "$HOME" --git-dir="$HOME/.dotfiles/" --work-tree="$
 # No-ops on consumers (no editing worktree there).
 staleness_note() {
     [ -e "$WORKTREE/.git" ] || return 0
-    local dirty behind
+    local dirty mod cand behind
     dirty="$(/usr/bin/git -C "$WORKTREE" status --porcelain 2>/dev/null || true)"
-    behind="$(git_wrap diff --cached --name-only main 2>/dev/null || true)"
+    # "$HOME behind" = exactly the files 'sync local' would apply: they differ
+    # from main in the WORK-TREE (present or deleted) but are not just local
+    # unstaged edits. Mirrors cmd_local so the advisory matches what sync local
+    # does -- and keys off the work-tree, not the bare index (which can be stale
+    # when a commit was made from the linked worktree).
+    mod="$(git_wrap -c status.showUntrackedFiles=no diff --name-only 2>/dev/null || true)"
+    cand="$( { git_wrap diff --name-only main 2>/dev/null;
+               git_wrap diff --name-only --diff-filter=D main 2>/dev/null; } \
+             | awk 'NF' | sort -u )"
+    behind="$(comm -23 <(printf '%s\n' "$cand" | sort -u) \
+                       <(printf '%s\n' "$mod"  | sort -u) | awk 'NF')"
     {
         [ -n "$dirty" ]  && echo "dotfiles: worktree $WORKTREE has uncommitted edits -- review (git -C $WORKTREE diff) and commit to publish them."
         [ -n "$behind" ] && echo "dotfiles: \$HOME is behind committed main -- run: dotfiles sync local"
